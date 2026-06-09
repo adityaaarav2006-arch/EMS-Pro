@@ -8,6 +8,111 @@ const STATUS_COLOR = {
   inactive: { bg: "#ef444418", color: "#ef4444" },
 }
 
+function AddEmployeeModal({ onClose, onSuccess }) {
+  const [form, setForm] = useState({
+    employee_id: "", name: "", email: "", phone: "",
+    department: "", designation: "", date_of_joining: "",
+    status: "active", salary: "", skills: ""
+  })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+ 
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError(""); setLoading(true)
+    try {
+      await api.post("/employees/", {
+        ...form,
+        salary: form.salary ? parseFloat(form.salary) : null,
+        skills: form.skills ? form.skills.split(",").map(s => s.trim()) : []
+      })
+      onSuccess()
+      onClose()
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to add employee")
+    } finally {
+      setLoading(false)
+    }
+  }
+ 
+  const fields = [
+    { label: "Employee ID", key: "employee_id", placeholder: "EMP0001" },
+    { label: "Full Name", key: "name", placeholder: "John Doe" },
+    { label: "Email", key: "email", placeholder: "john@company.com", type: "email" },
+    { label: "Phone", key: "phone", placeholder: "+91 9999999999" },
+    { label: "Department", key: "department", placeholder: "Engineering" },
+    { label: "Designation", key: "designation", placeholder: "Software Engineer" },
+    { label: "Date of Joining", key: "date_of_joining", type: "date" },
+    { label: "Salary", key: "salary", placeholder: "75000", type: "number" },
+    { label: "Skills (comma separated)", key: "skills", placeholder: "Python, React, MongoDB" },
+  ]
+ 
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "#00000088",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 100, padding: 24
+    }} onClick={onClose}>
+      <div style={{
+        background: "#13161e", border: "1px solid #ffffff1a",
+        borderRadius: 18, padding: 28, width: "100%", maxWidth: 520,
+        maxHeight: "90vh", overflowY: "auto"
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 20 }}>
+          Add New Employee
+        </div>
+ 
+        {error && (
+          <div style={{ background: "#ef444412", border: "1px solid #ef444430", color: "#ef4444", fontSize: 13, borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
+            {error}
+          </div>
+        )}
+ 
+        <form onSubmit={handleSubmit}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {fields.map(({ label, key, placeholder, type = "text" }) => (
+              <div key={key} style={{ marginBottom: 4 }}>
+                <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 5 }}>{label}</label>
+                <input
+                  type={type} placeholder={placeholder} required={["employee_id","name","email","department","designation","date_of_joining"].includes(key)}
+                  value={form[key]}
+                  onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                  style={{
+                    width: "100%", background: "#1a1e2a", border: "1px solid #ffffff1a",
+                    borderRadius: 10, padding: "9px 12px", color: "#e8eaf0",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 13, outline: "none"
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+ 
+          <div style={{ marginBottom: 16, marginTop: 4 }}>
+            <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 5 }}>Status</label>
+            <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+              style={{ width: "100%", background: "#1a1e2a", border: "1px solid #ffffff1a", borderRadius: 10, padding: "9px 12px", color: "#e8eaf0", fontFamily: "'DM Sans', sans-serif", fontSize: 13, outline: "none" }}>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="on_leave">On Leave</option>
+            </select>
+          </div>
+ 
+          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+            <button type="button" onClick={onClose}
+              style={{ flex: 1, background: "#1a1e2a", border: "1px solid #ffffff1a", borderRadius: 10, color: "#e8eaf0", fontFamily: "'DM Sans', sans-serif", fontSize: 13, padding: 11, cursor: "pointer" }}>
+              Cancel
+            </button>
+            <button type="submit" disabled={loading}
+              style={{ flex: 1, background: "#6366f1", border: "none", borderRadius: 10, color: "white", fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, padding: 11, cursor: "pointer", opacity: loading ? 0.6 : 1 }}>
+              {loading ? "Adding..." : "Add Employee"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState([])
   const [search, setSearch] = useState("")
@@ -15,6 +120,7 @@ export default function EmployeesPage() {
   const [loading, setLoading] = useState(true)
   const role = localStorage.getItem("ems_role")
   const isHR = role === "Admin" || role === "H.R."
+  const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
     fetchEmployees()
@@ -89,7 +195,7 @@ export default function EmployeesPage() {
           {isHR && (
             <div className="header-actions">
               <button className="btn btn-secondary" onClick={handleExport}><Download size={14} /> Export CSV</button>
-              <button className="btn btn-primary"><Plus size={14} /> Add Employee</button>
+              <button className="btn btn-primary" onClick={() => setShowModal(true)}><Plus size={14} /> Add Employee</button>
             </div>
           )}
         </div>
@@ -142,6 +248,12 @@ export default function EmployeesPage() {
           )}
         </div>
       </div>
+      {showModal && (
+        <AddEmployeeModal
+          onClose={() => setShowModal(false)}
+          onSuccess={fetchEmployees}
+        />
+      )}
     </>
   )
 }

@@ -2,8 +2,31 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from app.core.dependencies import get_current_user,require_role
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate
 from app.database import get_db
+from fastapi.responses import StreamingResponse
+import csv
+import io
 
 router = APIRouter(prefix="/employees", tags=["employees"])
+
+@router.get("/export/csv")
+async def export_csv(db=Depends(get_db), role=Depends(require_role("Admin", "H.R."))):
+    employees = await db.employees.find().to_list(None)
+    
+    output = io.StringIO()
+    fields = ["employee_id", "name", "email", "phone", "department", "designation", 
+              "date_of_joining", "status", "salary", "skills"]
+    writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
+    writer.writeheader()
+    for emp in employees:
+        emp["skills"] = ", ".join(emp.get("skills", []))
+        writer.writerow({f: emp.get(f, "") for f in fields})
+    
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=employees.csv"}
+    )
 
 @router.get("/")
 async def get_all_employees(db = Depends(get_db),current_user = Depends(get_current_user)):
